@@ -1,0 +1,47 @@
+name: Publish Python Package to PyPI
+
+on:
+  release:
+    types: [published] # This workflow runs when you create and publish a new GitHub Release
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi # Creates a PyPI environment in GitHub to track deployments
+      url: https://pypi.org/p/amusic/ # IMPORTANT: Make sure 'amusic' matches the name in your setup.py
+
+    permissions:
+      id-token: write # This is mandatory for PyPI's Trusted Publishers feature
+      contents: read # Allows checking out the code
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9' # Or the Python version you support
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Install 'build' and 'twine' for packaging and uploading
+        pip install build twine
+
+    - name: Build package
+      # This command creates the distributable files (.tar.gz and .whl)
+      # in the 'dist/' directory.
+      run: |
+        python -m build
+
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        # No explicit username or password needed here if Trusted Publishers is set up on PyPI
+        # and the 'id-token: write' permission is granted.
+        # If using TestPyPI for testing first, you might specify:
+        # repository-url: https://test.pypi.org/legacy/
+        # username: __token__
+        # password: ${{ secrets.TEST_PYPI_API_TOKEN }} # Use a different secret for TestPyPI
