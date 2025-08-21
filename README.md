@@ -39,34 +39,7 @@ Before installing the Python package, ensure you have the following system-level
 ---
 
 ## Installation
-
-1.  **Clone the repository:**
-
-    ```
-    git clone [https://github.com/your-github-username/amusic.git](https://github.com/your-github-username/amusic.git) # Replace with your actual repo URL
-    cd amusic
-    ```
-
-2.  **Create a virtual environment (recommended):**
-
-    ```
-    python -m venv venv
-    # On Windows:
-    # venv\Scripts\activate
-    # On macOS/Linux:
-    # source venv/bin/activate
-    ```
-
-3.  **Install the package:**
-
-    ```
-    pip install .
-    ```
-
-    This command tells `pip` to install the package located in the current directory (`.`).
-
----
-
+* **pip install amusic** *
 ## Usage
 
 Once installed, you can use the `MidiVisualizer` class in your Python scripts:
