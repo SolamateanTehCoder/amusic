@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='amusic', # Changed package name to 'amusic'
-    version='0.1.1',
+    name='amusic', 
+    version='1.0.0',
     author='SolamaeteanTehCoder',
-    author_email='arjunshmaadhava@gmail.com', # Replace with your email
+    author_email='arjunshmaadhava@gmail.com', 
     description='A Python tool for generating MIDI visualization videos.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
