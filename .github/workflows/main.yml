@@ -2,7 +2,7 @@ name: Publish Python Package to PyPI
 
 on:
   release:
-    types: [published] # This workflow runs when you create and publish a new GitHub Release
+    types: [published
 
 jobs:
   pypi-publish:
@@ -31,8 +31,6 @@ jobs:
         pip install build twine
 
     - name: Build package
-      # This command creates the distributable files (.tar.gz and .whl)
-      # in the 'dist/' directory.
       run: |
         python -m build
 
