@@ -39,6 +39,9 @@ jobs:
     - name: Publish package distributions to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
+        # Explicitly setting the repository-url makes the 'with' block valid for the YAML parser.
+        # This is the default URL for PyPI uploads when using Trusted Publishers.
+        repository-url: https://upload.pypi.org/legacy/
         # No explicit username or password needed here if Trusted Publishers is set up on PyPI
         # and the 'id-token: write' permission is granted.
         # If using TestPyPI for testing first, you might specify:
