@@ -1,0 +1,5 @@
+mido
+synthviz
+Pillow
+pydub
+numpy
