@@ -22,9 +22,10 @@ class MidiVisualizer:
     """
 
     def __init__(self, midi_file_path, output_video_filename=None,
-                 resolution=(1920, 1080), fps=60, bitrate_mbps=10, # Updated default resolution and FPS
+                 resolution=(1920, 1080), fps=60, bitrate_mbps=10,
                  max_video_duration_seconds=30, black_key_height_ratio=0.6,
-                 synthviz_vertical_speed=0.25, min_visual_gap_seconds=0.04): # Updated defaults
+                 synthviz_vertical_speed=0.25, min_visual_gap_seconds=0.04,
+                 soundfont_path=None, falling_note_color=None, pressed_key_color=None): # NEW PARAMETERS
         """
         Initializes the MidiVisualizer with configuration settings.
 
@@ -43,6 +44,12 @@ class MidiVisualizer:
                                                        fraction of image height per second. Defaults to 0.25.
             min_visual_gap_seconds (float, optional): Minimum visual gap to force between consecutive notes
                                                       on the same key in seconds. Defaults to 0.04.
+            soundfont_path (str, optional): Path to a SoundFont (.sf2) file for audio rendering.
+                                            If None, Timidity's default soundfont will be used.
+            falling_note_color (list, optional): RGB list for the color of notes as they fall (e.g., [R, G, B]).
+                                                 Defaults to synthviz's default.
+            pressed_key_color (list, optional): RGB list for the color of keys when pressed (e.g., [R, G, B]).
+                                                Defaults to synthviz's default.
         """
         self.midi_file_path = midi_file_path
         self.output_video_filename = output_video_filename if output_video_filename else \
@@ -54,9 +61,12 @@ class MidiVisualizer:
         self.black_key_height_ratio = black_key_height_ratio
         self.synthviz_vertical_speed = synthviz_vertical_speed
         self.min_visual_gap_seconds = min_visual_gap_seconds
+        self.soundfont_path = soundfont_path # Stored for use
+        self.falling_note_color = falling_note_color # Stored for use
+        self.pressed_key_color = pressed_key_color # Stored for use
 
         self._validate_config()
-        print(f"DEBUG: Configuration loaded: Resolution={self.resolution}, FPS={self.fps}, Bitrate={self.bitrate_mbps}Mbps, Max Video Duration={self.max_video_duration_seconds}s, Black Key Height Ratio={self.black_key_height_ratio}, Synthviz Vertical Speed={self.synthviz_vertical_speed}, Min Visual Gap Seconds={self.min_visual_gap_seconds}")
+        print(f"DEBUG: Configuration loaded: Resolution={self.resolution}, FPS={self.fps}, Bitrate={self.bitrate_mbps}Mbps, Max Video Duration={self.max_video_duration_seconds}s, Black Key Height Ratio={self.black_key_height_ratio}, Synthviz Vertical Speed={self.synthviz_vertical_speed}, Min Visual Gap Seconds={self.min_visual_gap_seconds}, Soundfont='{self.soundfont_path if self.soundfont_path else 'default'}', Falling Note Color={self.falling_note_color}, Pressed Key Color={self.pressed_key_color}")
 
     def _validate_config(self):
         """Internal method to validate configuration parameters."""
@@ -74,6 +84,13 @@ class MidiVisualizer:
             raise ValueError("SYNTHVIZ_VERTICAL_SPEED must be a positive number.")
         if not isinstance(self.min_visual_gap_seconds, (int, float)) or self.min_visual_gap_seconds < 0:
             raise ValueError("MIN_VISUAL_GAP_SECONDS must be a non-negative number.")
+        if self.soundfont_path is not None and not (isinstance(self.soundfont_path, str) and os.path.exists(self.soundfont_path)):
+             raise ValueError(f"Soundfont path '{self.soundfont_path}' is provided but not a valid file.")
+        if self.falling_note_color is not None and (not isinstance(self.falling_note_color, list) or len(self.falling_note_color) != 3 or not all(0 <= c <= 255 for c in self.falling_note_color)):
+            raise ValueError("falling_note_color must be a list of 3 integers (RGB) between 0 and 255.")
+        if self.pressed_key_color is not None and (not isinstance(self.pressed_key_color, list) or len(self.pressed_key_color) != 3 or not all(0 <= c <= 255 for c in self.pressed_key_color)):
+            raise ValueError("pressed_key_color must be a list of 3 integers (RGB) between 0 and 255.")
+
 
     def _check_system_dependencies(self):
         """
@@ -261,6 +278,8 @@ class MidiVisualizer:
         if processed_midi_file is None or total_midi_time == 0:
             print("ERROR: MIDI pre-processing failed or no notes found. Cannot proceed with video creation.")
             sys.exit(1)
+
+        # Use the clipped duration, though synthviz might handle this based on MIDI length
         clipped_duration = min(total_midi_time, self.max_video_duration_seconds)
         
         # --- Use synthviz to create the video WITH audio ---
@@ -268,12 +287,15 @@ class MidiVisualizer:
         try:
             synthviz_create_video(
                 input_midi=processed_midi_file, # Use the processed MIDI file
-                video_filename=self.output_video_filename,
+                video_filename=self.output_video_filename, # synthviz directly outputs the final video
                 image_width=self.resolution[0],
                 image_height=self.resolution[1],
                 black_key_height=self.black_key_height_ratio,
                 vertical_speed=self.synthviz_vertical_speed,
-                fps=self.fps
+                fps=self.fps,
+                soundfont=self.soundfont_path, # Pass the custom soundfont path
+                falling_note_color=self.falling_note_color, # Pass falling note color
+                pressed_key_color=self.pressed_key_color # Pass pressed key color
             )
             print(f"\nSUCCESS: Final video successfully created as '{self.output_video_filename}' using synthviz.")
         except Exception as e:
