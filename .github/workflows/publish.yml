@@ -2,7 +2,7 @@ name: Publish Python Package to PyPI
 
 on:
   release:
-    types: [push]
+    types: [published] # This workflow runs when you create and publish a new GitHub Release
 
 jobs:
   pypi-publish:
@@ -22,7 +22,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.9' # Or the Python version you support
 
     - name: Install dependencies
       run: |
