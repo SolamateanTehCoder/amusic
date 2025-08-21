@@ -22,9 +22,9 @@ class MidiVisualizer:
     """
 
     def __init__(self, midi_file_path, output_video_filename=None,
-                 resolution=(1280, 720), fps=30, bitrate_mbps=8,
+                 resolution=(1920, 1080), fps=60, bitrate_mbps=10, # Updated default resolution and FPS
                  max_video_duration_seconds=30, black_key_height_ratio=0.6,
-                 synthviz_vertical_speed=0.2, min_visual_gap_seconds=0.03):
+                 synthviz_vertical_speed=0.25, min_visual_gap_seconds=0.04): # Updated defaults
         """
         Initializes the MidiVisualizer with configuration settings.
 
@@ -32,17 +32,17 @@ class MidiVisualizer:
             midi_file_path (str): The path to the input MIDI file.
             output_video_filename (str, optional): The name of the output video file.
                                                   Defaults to MIDI_FILE_NAME_visualizer_final.mp4.
-            resolution (tuple, optional): Video resolution (width, height). Defaults to (1280, 720).
-            fps (int, optional): Frames per second. Defaults to 30.
-            bitrate_mbps (int, optional): Video bitrate in megabits per second. Defaults to 8.
+            resolution (tuple, optional): Video resolution (width, height). Defaults to (1920, 1080).
+            fps (int, optional): Frames per second. Defaults to 60.
+            bitrate_mbps (int, optional): Video bitrate in megabits per second. Defaults to 10.
             max_video_duration_seconds (int, optional): Maximum duration of the output video in seconds.
                                                         Used to limit processing time. Defaults to 30.
             black_key_height_ratio (float, optional): Height of black keys as a ratio of full piano height (0.0 to 1.0).
                                                       Defaults to 0.6.
             synthviz_vertical_speed (float, optional): The speed of falling keys in synthviz,
-                                                       fraction of image height per second. Defaults to 0.2.
+                                                       fraction of image height per second. Defaults to 0.25.
             min_visual_gap_seconds (float, optional): Minimum visual gap to force between consecutive notes
-                                                      on the same key in seconds. Defaults to 0.03.
+                                                      on the same key in seconds. Defaults to 0.04.
         """
         self.midi_file_path = midi_file_path
         self.output_video_filename = output_video_filename if output_video_filename else \
@@ -261,8 +261,6 @@ class MidiVisualizer:
         if processed_midi_file is None or total_midi_time == 0:
             print("ERROR: MIDI pre-processing failed or no notes found. Cannot proceed with video creation.")
             sys.exit(1)
-
-        # Use the clipped duration, though synthviz might handle this based on MIDI length
         clipped_duration = min(total_midi_time, self.max_video_duration_seconds)
         
         # --- Use synthviz to create the video WITH audio ---
@@ -270,16 +268,12 @@ class MidiVisualizer:
         try:
             synthviz_create_video(
                 input_midi=processed_midi_file, # Use the processed MIDI file
-                video_filename=self.output_video_filename, # synthviz directly outputs the final video
+                video_filename=self.output_video_filename,
                 image_width=self.resolution[0],
                 image_height=self.resolution[1],
                 black_key_height=self.black_key_height_ratio,
                 vertical_speed=self.synthviz_vertical_speed,
                 fps=self.fps
-                # synthviz options like falling_note_color and pressed_key_color
-                # can be uncommented and set if you want specific colors instead of synthviz's defaults
-                # falling_note_color=[75, 105, 177], # Example: darker blue
-                # pressed_key_color=[197, 208, 231]  # Example: lighter blue
             )
             print(f"\nSUCCESS: Final video successfully created as '{self.output_video_filename}' using synthviz.")
         except Exception as e:
@@ -295,4 +289,3 @@ class MidiVisualizer:
                 except Exception as e:
                     print(f"WARNING: Failed to remove temporary processed MIDI file '{processed_midi_file}': {e}")
             print("--- Video creation process complete ---")
-
