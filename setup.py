@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='amusic', # Changed package name to 'amusic'
-    version='0.1.0',
+    version='0.1.1',
     author='SolamaeteanTehCoder',
     author_email='arjunshmaadhava@gmail.com', # Replace with your email
     description='A Python tool for generating MIDI visualization videos.',
