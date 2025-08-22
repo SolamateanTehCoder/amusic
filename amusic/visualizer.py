@@ -4,7 +4,8 @@ import shutil
 import sys
 import subprocess
 import requests # New import for downloading files
-import tempfile # New import for creating temporary files
+# Removed tempfile as files will be persistent now
+import appdirs # New import for finding OS-specific data dir, to make cache more robust
 
 try:
     from synthviz import create_video as synthviz_create_video
@@ -28,6 +29,12 @@ class MidiVisualizer:
     DEFAULT_SOUNDFONT_URL = "https://www.midifiles.com/assets/downloads/soundfonts/GeneralUser_GS_v1.47.sf2"
     DEFAULT_SOUNDFONT_FILENAME = "GeneralUser_GS_v1.47.sf2"
 
+    # Define a persistent cache directory for the SoundFont.
+    # This will be created within the user's application data directory,
+    # ensuring it's not deleted between runs.
+    _APP_NAME = "amusic"
+    _APP_AUTHOR = "SolamateanTehCoder" # Use your GitHub username or package author
+    SOUNDFONT_CACHE_DIR = os.path.join(appdirs.user_data_dir(_APP_NAME, _APP_AUTHOR), "_soundfonts_cache")
 
     def __init__(self, midi_file_path, output_video_filename=None,
                  resolution=(1920, 1080), fps=60, bitrate_mbps=10,
@@ -53,7 +60,7 @@ class MidiVisualizer:
             min_visual_gap_seconds (float, optional): Minimum visual gap to force between consecutive notes
                                                       on the same key in seconds. Defaults to 0.04.
             soundfont_path (str, optional): Path to a SoundFont (.sf2) file for audio rendering.
-                                            If None or not found, a default will be downloaded.
+                                            If None or not found, a default will be downloaded and cached.
             falling_note_color (list, optional): RGB list for the color of notes as they fall (e.g., [R, G, B]).
                                                  Defaults to synthviz's default.
             pressed_key_color (list, optional): RGB list for the color of keys when pressed (e.g., [R, G, B]).
@@ -69,10 +76,10 @@ class MidiVisualizer:
         self.black_key_height_ratio = black_key_height_ratio
         self.synthviz_vertical_speed = synthviz_vertical_speed
         self.min_visual_gap_seconds = min_visual_gap_seconds
-        self.soundfont_path = soundfont_path # Will be updated if downloaded
+        self.soundfont_path = soundfont_path # Will be updated if downloaded or loaded from cache
         self.falling_note_color = falling_note_color
         self.pressed_key_color = pressed_key_color
-        self._temp_soundfont_path = None # To track downloaded soundfont for cleanup
+        # Removed _temp_soundfont_path as it's now persistent
 
         self._validate_config()
         print(f"DEBUG: Configuration loaded: Resolution={self.resolution}, FPS={self.fps}, Bitrate={self.bitrate_mbps}Mbps, Max Video Duration={self.max_video_duration_seconds}s, Black Key Height Ratio={self.black_key_height_ratio}, Synthviz Vertical Speed={self.synthviz_vertical_speed}, Min Visual Gap Seconds={self.min_visual_gap_seconds}, Soundfont='{self.soundfont_path if self.soundfont_path else 'default/auto-download'}', Falling Note Color={self.falling_note_color}, Pressed Key Color={self.pressed_key_color}")
@@ -112,12 +119,14 @@ class MidiVisualizer:
                                    f"Please install it. (e.g., on Ubuntu: sudo apt-get install -y {dep})")
         print("DEBUG: All system dependencies (ffmpeg, timidity) found.")
 
-    def _download_soundfont(self, url, filename):
+    def _download_soundfont(self, url, target_dir, filename):
         """
-        Downloads a file from a given URL to a temporary location.
+        Downloads a file from a given URL to a specified target directory.
         Returns the path to the downloaded file or None on failure.
         """
-        download_path = os.path.join(tempfile.gettempdir(), filename)
+        os.makedirs(target_dir, exist_ok=True) # Ensure the cache directory exists
+        download_path = os.path.join(target_dir, filename)
+        
         print(f"DEBUG: Attempting to download SoundFont from {url} to {download_path}")
         try:
             response = requests.get(url, stream=True, timeout=30)
@@ -240,7 +249,7 @@ class MidiVisualizer:
             # Filter for non-note messages from the original merged stream
             for event_info in all_original_messages_with_abs_time:
                 if event_info['msg'].type != 'note_on' and event_info['msg'].type != 'note_off':
-                    rebuild_events.append({'time': event['time'], 'type': 'original_msg_wrapper', 'msg': event_info['msg'].copy()}) # Changed event_info['time'] to event['time']
+                    rebuild_events.append({'time': event_info['time'], 'type': 'original_msg_wrapper', 'msg': event_info['msg'].copy()}) 
             
             # Sort all events chronologically
             rebuild_events.sort(key=lambda x: x['time'])
@@ -304,15 +313,23 @@ class MidiVisualizer:
 
         # Step 0.5: Handle SoundFont
         actual_soundfont_path = self.soundfont_path
+        
+        # If no soundfont path is explicitly provided or the provided path doesn't exist,
+        # try to use the cached default soundfont or download it.
         if actual_soundfont_path is None or not os.path.exists(actual_soundfont_path):
-            print(f"INFO: Soundfont '{actual_soundfont_path if actual_soundfont_path else 'None'}' not found or provided. Attempting to download default.")
-            downloaded_sf = self._download_soundfont(self.DEFAULT_SOUNDFONT_URL, self.DEFAULT_SOUNDFONT_FILENAME)
-            if downloaded_sf:
-                actual_soundfont_path = downloaded_sf
-                self._temp_soundfont_path = downloaded_sf # Store for cleanup
+            cached_default_sf_path = os.path.join(self.SOUNDFONT_CACHE_DIR, self.DEFAULT_SOUNDFONT_FILENAME)
+            
+            if os.path.exists(cached_default_sf_path):
+                print(f"INFO: Using cached default SoundFont: '{cached_default_sf_path}'")
+                actual_soundfont_path = cached_default_sf_path
             else:
-                print("WARNING: Failed to download default SoundFont. Timidity will use its built-in default.")
-                actual_soundfont_path = None # Ensure it's None if download failed
+                print(f"INFO: Soundfont '{actual_soundfont_path if actual_soundfont_path else 'None'}' not found or provided. Attempting to download default to cache.")
+                downloaded_sf = self._download_soundfont(self.DEFAULT_SOUNDFONT_URL, self.SOUNDFONT_CACHE_DIR, self.DEFAULT_SOUNDFONT_FILENAME)
+                if downloaded_sf:
+                    actual_soundfont_path = downloaded_sf
+                else:
+                    print("WARNING: Failed to download default SoundFont. Timidity will use its built-in default.")
+                    actual_soundfont_path = None # Ensure it's None if download failed
 
         # Step 1: Pre-process MIDI for visual gaps
         processed_midi_file, total_midi_time = self._parse_midi_and_apply_visual_gaps()
@@ -335,7 +352,7 @@ class MidiVisualizer:
                 black_key_height=self.black_key_height_ratio,
                 vertical_speed=self.synthviz_vertical_speed,
                 fps=self.fps,
-                soundfont=actual_soundfont_path, # Pass the actual soundfont path (either user-provided or downloaded)
+                soundfont=actual_soundfont_path, # Pass the actual soundfont path (either user-provided, cached, or None)
                 falling_note_color=self.falling_note_color,
                 pressed_key_color=self.pressed_key_color
             )
@@ -352,11 +369,5 @@ class MidiVisualizer:
                     print(f"DEBUG: Removed temporary processed MIDI file: '{processed_midi_file}'")
                 except Exception as e:
                     print(f"WARNING: Failed to remove temporary processed MIDI file '{processed_midi_file}': {e}")
-            # Clean up downloaded soundfont if applicable
-            if self._temp_soundfont_path and os.path.exists(self._temp_soundfont_path):
-                try:
-                    os.remove(self._temp_soundfont_path)
-                    print(f"DEBUG: Removed temporary downloaded SoundFont: '{self._temp_soundfont_path}'")
-                except Exception as e:
-                    print(f"WARNING: Failed to remove temporary SoundFont '{self._temp_soundfont_path}': {e}")
+            # The downloaded soundfont is now persistent, no need to clean up here.
             print("--- Video creation process complete ---")
