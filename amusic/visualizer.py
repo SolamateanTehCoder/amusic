@@ -3,8 +3,9 @@ import os
 import shutil
 import sys
 import subprocess
-import requests # Keeping requests in case you add other web features later, but not for soundfont
-import appdirs # Using appdirs for persistent caching, though less critical without auto-download
+import requests
+import appdirs # Using appdirs for persistent caching
+import re # For regex to extract Google Drive file ID
 
 try:
     from synthviz import create_video as synthviz_create_video
@@ -23,9 +24,14 @@ class MidiVisualizer:
     Requires system dependencies: FFmpeg and Timidity.
     """
 
-    # --- SoundFont Configuration (NO DEFAULT DOWNLOAD OR URL ANYMORE) ---
-    # Users are expected to provide a soundfont_path if they want custom audio.
-    # Otherwise, Timidity's built-in default will be used.
+    # --- Default SoundFont Configuration ---
+    # This ID now points to your specific Google Drive SoundFont.
+    # Make sure this Google Drive file is shared publicly ("Anyone with the link can view").
+    DEFAULT_SOUNDFONT_GD_FILE_ID = "17CrVEINWELviq3vdB86qqiRsGBePqyGG"
+    DEFAULT_SOUNDFONT_URL = f"https://drive.google.com/uc?export=download&id={DEFAULT_SOUNDFONT_GD_FILE_ID}"
+    DEFAULT_SOUNDFONT_FILENAME = "soundfont.sf2" # Assuming this is the name of the file
+
+    # Define a persistent cache directory for the SoundFont.
     _APP_NAME = "amusic"
     _APP_AUTHOR = "SolamateanTehCoder" # Use your GitHub username or package author
     SOUNDFONT_CACHE_DIR = os.path.join(appdirs.user_data_dir(_APP_NAME, _APP_AUTHOR), "_soundfonts_cache")
@@ -55,7 +61,7 @@ class MidiVisualizer:
             min_visual_gap_seconds (float, optional): Minimum visual gap to force between consecutive notes
                                                       on the same key in seconds. Defaults to 0.04.
             soundfont_path (str, optional): Path to a SoundFont (.sf2) file for audio rendering.
-                                            If provided, it will be used. Otherwise, Timidity's default will be used.
+                                            If None or not found, a default will be downloaded and cached.
             falling_note_color (list, optional): RGB list for the color of notes as they fall (e.g., [R, G, B]).
                                                  Defaults to synthviz's default.
             pressed_key_color (list, optional): RGB list for the color of keys when pressed (e.g., [R, G, B]).
@@ -71,12 +77,12 @@ class MidiVisualizer:
         self.black_key_height_ratio = black_key_height_ratio
         self.synthviz_vertical_speed = synthviz_vertical_speed
         self.min_visual_gap_seconds = min_visual_gap_seconds
-        self.soundfont_path = soundfont_path # Will be used if provided and exists
+        self.soundfont_path = soundfont_path # Will be updated if downloaded or loaded from cache
         self.falling_note_color = falling_note_color
         self.pressed_key_color = pressed_key_color
 
         self._validate_config()
-        print(f"DEBUG: Configuration loaded: Resolution={self.resolution}, FPS={self.fps}, Bitrate={self.bitrate_mbps}Mbps, Max Video Duration={self.max_video_duration_seconds}s, Black Key Height Ratio={self.black_key_height_ratio}, Synthviz Vertical Speed={self.synthviz_vertical_speed}, Min Visual Gap Seconds={self.min_visual_gap_seconds}, Soundfont='{self.soundfont_path if self.soundfont_path else 'None (using Timidity default)'}', Falling Note Color={self.falling_note_color}, Pressed Key Color={self.pressed_key_color}")
+        print(f"DEBUG: Configuration loaded: Resolution={self.resolution}, FPS={self.fps}, Bitrate={self.bitrate_mbps}Mbps, Max Video Duration={self.max_video_duration_seconds}s, Black Key Height Ratio={self.black_key_height_ratio}, Synthviz Vertical Speed={self.synthviz_vertical_speed}, Min Visual Gap Seconds={self.min_visual_gap_seconds}, Soundfont='{self.soundfont_path if self.soundfont_path else 'default/auto-download'}', Falling Note Color={self.falling_note_color}, Pressed Key Color={self.pressed_key_color}")
 
     def _validate_config(self):
         """Internal method to validate configuration parameters."""
@@ -112,7 +118,53 @@ class MidiVisualizer:
                                    f"Please install it. (e.g., on Ubuntu: sudo apt-get install -y {dep})")
         print("DEBUG: All system dependencies (ffmpeg, timidity) found.")
 
-    # The _download_soundfont method has been removed as auto-download is no longer supported.
+    def _download_soundfont(self, url, target_dir, filename):
+        """
+        Downloads a file from a given URL to a specified target directory.
+        Handles Google Drive 'confirm' parameter for larger files.
+        Returns the path to the downloaded file or None on failure.
+        """
+        os.makedirs(target_dir, exist_ok=True) # Ensure the cache directory exists
+        download_path = os.path.join(target_dir, filename)
+        
+        # Check if soundfont already exists in cache
+        if os.path.exists(download_path):
+            print(f"INFO: SoundFont already exists in cache: '{download_path}'. Skipping download.")
+            return download_path
+
+        print(f"DEBUG: Attempting to download SoundFont from {url} to {download_path}")
+        session = requests.Session()
+        try:
+            response = session.get(url, stream=True, timeout=30)
+            response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+
+            # Check for Google Drive virus scan warning
+            if "confirm=" in response.url:
+                print("DEBUG: Google Drive virus scan warning detected. Attempting to bypass.")
+                # Extract the 'confirm' value from the redirect URL
+                match = re.search(r'confirm=([^&]+)', response.url)
+                if match:
+                    confirm_value = match.group(1)
+                    # Reconstruct URL with confirmation
+                    url_with_confirm = f"{url}&confirm={confirm_value}"
+                    response = session.get(url_with_confirm, stream=True, timeout=30)
+                    response.raise_for_status()
+                    print("DEBUG: Google Drive confirmation successful.")
+                else:
+                    print("WARNING: Could not extract Google Drive 'confirm' value.")
+                    return None
+
+            with open(download_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print(f"DEBUG: Successfully downloaded SoundFont to {download_path}")
+            return download_path
+        except requests.exceptions.RequestException as e:
+            print(f"WARNING: Could not download SoundFont from {url}: {e}")
+            return None
+        except Exception as e:
+            print(f"WARNING: An unexpected error occurred during SoundFont download: {e}")
+            return None
 
     def _parse_midi_and_apply_visual_gaps(self):
         """
@@ -281,12 +333,25 @@ class MidiVisualizer:
             print(f"CRITICAL ERROR: {e}")
             sys.exit(1)
 
-        # Step 0.5: Handle SoundFont (NO AUTOMATIC DOWNLOAD)
+        # Step 0.5: Handle SoundFont
         actual_soundfont_path = self.soundfont_path
-        # No automatic download - check if the provided path is valid
-        if actual_soundfont_path and not os.path.exists(actual_soundfont_path):
-            print(f"WARNING: Provided SoundFont file '{actual_soundfont_path}' not found. Timidity will use its built-in default. Audio might be basic.")
-            actual_soundfont_path = None # Ensure it's None if not found
+        
+        # If no soundfont path is explicitly provided or the provided path doesn't exist,
+        # try to use the cached default soundfont or download it.
+        if actual_soundfont_path is None or not os.path.exists(actual_soundfont_path):
+            cached_default_sf_path = os.path.join(self.SOUNDFONT_CACHE_DIR, self.DEFAULT_SOUNDFONT_FILENAME)
+            
+            if os.path.exists(cached_default_sf_path):
+                print(f"INFO: Using cached default SoundFont: '{cached_default_sf_path}'")
+                actual_soundfont_path = cached_default_sf_path
+            else:
+                print(f"INFO: Soundfont '{actual_soundfont_path if actual_soundfont_path else 'None'}' not found or provided. Attempting to download default to cache.")
+                downloaded_sf = self._download_soundfont(self.DEFAULT_SOUNDFONT_URL, self.SOUNDFONT_CACHE_DIR, self.DEFAULT_SOUNDFONT_FILENAME)
+                if downloaded_sf:
+                    actual_soundfont_path = downloaded_sf
+                else:
+                    print("WARNING: Failed to download default SoundFont. Timidity will use its built-in default.")
+                    actual_soundfont_path = None # Ensure it's None if download failed
 
         # Step 1: Pre-process MIDI for visual gaps
         processed_midi_file, total_midi_time = self._parse_midi_and_apply_visual_gaps()
@@ -301,9 +366,6 @@ class MidiVisualizer:
         # --- Use synthviz to create the video WITH audio ---
         print("\n--- Generating video and audio using synthviz ---")
         try:
-            # IMPORTANT: Removed 'soundfont', 'falling_note_color', 'pressed_key_color' from synthviz_create_video call
-            # because the currently installed synthviz version does not support them (as per previous error logs).
-            # The visualization will use synthviz's default audio and visual styling.
             synthviz_create_video(
                 input_midi=processed_midi_file, # Use the processed MIDI file
                 video_filename=self.output_video_filename, # synthviz directly outputs the final video
@@ -311,10 +373,10 @@ class MidiVisualizer:
                 image_height=self.resolution[1],
                 black_key_height=self.black_key_height_ratio,
                 vertical_speed=self.synthviz_vertical_speed,
-                fps=self.fps
-                # The 'soundfont' parameter and color parameters are not passed here
-                # because the currently installed synthviz version does not support them.
-                # If a newer synthviz is installed in the future, these can be re-added.
+                fps=self.fps,
+                soundfont=actual_soundfont_path, # Pass the actual soundfont path (either user-provided, cached, or None)
+                falling_note_color=self.falling_note_color,
+                pressed_key_color=self.pressed_key_color
             )
             print(f"\nSUCCESS: Final video successfully created as '{self.output_video_filename}' using synthviz.")
         except Exception as e:
@@ -329,4 +391,5 @@ class MidiVisualizer:
                     print(f"DEBUG: Removed temporary processed MIDI file: '{processed_midi_file}'")
                 except Exception as e:
                     print(f"WARNING: Failed to remove temporary processed MIDI file '{processed_midi_file}': {e}")
+            # The downloaded soundfont is now persistent, no need to clean up here.
             print("--- Video creation process complete ---")
