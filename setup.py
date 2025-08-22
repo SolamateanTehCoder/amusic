@@ -1,14 +1,14 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='amusic', 
+    name='amusic',
     version='1.0.0',
-    author='SolamaeteanTehCoder',
-    author_email='arjunshmaadhava@gmail.com', 
-    description='A Python tool for generating MIDI visualization videos.',
+    author='SolamateanTehCoder',
+    author_email='arjunshmaadhava@gmail.com',
+    description='A Python tool for generating MIDI visualization videos with note separation, auto-soundfont download, and color customization.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    url='https://github.com/SolamaeteanTehCoder/amusic',
+    url='https://github.com/SolamateanTehCoder/amusic',
     packages=find_packages(),
     install_requires=[
         'mido',
@@ -16,6 +16,8 @@ setup(
         'Pillow',
         'pydub',
         'numpy',
+        'requests',
+        'appdirs', 
     ],
     classifiers=[
         'Programming Language :: Python :: 3',
@@ -28,4 +30,3 @@ setup(
     python_requires='>=3.8',
     keywords='midi visualizer music video synthviz piano roll',
 )
-
