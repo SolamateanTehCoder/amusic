@@ -24,6 +24,7 @@ class MidiVisualizer:
     """
 
     # --- Default SoundFont Configuration ---
+    # This URL provides a general MIDI soundfont that often includes a good piano.
     DEFAULT_SOUNDFONT_URL = "https://www.midifiles.com/assets/downloads/soundfonts/GeneralUser_GS_v1.47.sf2"
     DEFAULT_SOUNDFONT_FILENAME = "GeneralUser_GS_v1.47.sf2"
 
