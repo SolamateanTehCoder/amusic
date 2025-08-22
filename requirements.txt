@@ -3,3 +3,5 @@ synthviz
 Pillow
 pydub
 numpy
+requests
+appdirs
