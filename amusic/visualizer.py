@@ -249,7 +249,7 @@ class MidiVisualizer:
             # Filter for non-note messages from the original merged stream
             for event_info in all_original_messages_with_abs_time:
                 if event_info['msg'].type != 'note_on' and event_info['msg'].type != 'note_off':
-                    rebuild_events.append({'time': event_info['time'], 'type': 'original_msg_wrapper', 'msg': event_info['msg'].copy()}) 
+                    rebuild_events.append({'time': event_info['time'], 'type': 'original_msg_wrapper', 'msg': event_info['msg'].copy()})
             
             # Sort all events chronologically
             rebuild_events.sort(key=lambda x: x['time'])
@@ -371,3 +371,85 @@ class MidiVisualizer:
                     print(f"WARNING: Failed to remove temporary processed MIDI file '{processed_midi_file}': {e}")
             # The downloaded soundfont is now persistent, no need to clean up here.
             print("--- Video creation process complete ---")
+```
+
+### 1.2. Update `setup.py`
+
+Go to your `setup.py` file in your `SolamateanTehCoder/amusic` repository on GitHub. **Replace its entire content** with the code below.
+
+```python
+from setuptools import setup, find_packages
+
+setup(
+    name='amusic',
+    version='0.1.4', # <--- IMPORTANT: Ensure this version is INCREMENTED!
+    author='SolamateanTehCoder', # Replace with your actual GitHub username
+    author_email='your.email@example.com', # Replace with your actual email
+    description='A Python tool for generating MIDI visualization videos with note separation, auto-soundfont download, and color customization.',
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
+    url='https://github.com/SolamateanTehCoder/amusic', # Replace with your actual project's GitHub URL
+    packages=find_packages(),
+    install_requires=[
+        'mido',
+        'synthviz',
+        'Pillow',
+        'pydub',
+        'numpy',
+        'requests',  # Make sure this is present!
+        'appdirs',   # Make sure this is present!
+    ],
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+        'Topic :: Multimedia :: Sound/Audio',
+        'Topic :: Multimedia :: Video',
+        'Topic :: Artistic Software',
+    ],
+    python_requires='>=3.8',
+    keywords='midi visualizer music video synthviz piano roll',
+)
+```
+
+### 1.3. Update `requirements.txt`
+
+Go to your `requirements.txt` file in your `SolamateanTehCoder/amusic` repository on GitHub. **Replace its entire content** with the code below.
+
+```
+mido
+synthviz
+Pillow
+pydub
+numpy
+requests
+appdirs
+```
+
+### 1.4. Commit and Push to `amusic` Repository
+
+**Save all three updated files.** Then, **commit these changes with a clear message** (e.g., "fix: Final comprehensive update for auto-soundfont and colors") and **push them to the `main` branch of your `SolamateanTehCoder/amusic` repository.**
+
+---
+
+## Step 2: **Trigger Your Video Rendering Workflow**
+
+Now that your `amusic` package repository is fully updated, we need to trigger your video rendering workflow to pull these latest changes.
+
+* **Action:** Go to your video rendering GitHub repository.
+* **Push a New Commit:** Make any small, non-functional change to its `main` branch. This could be adding a blank line to its `README.md` or adding a comment to the `.github/workflows/main.yml` file itself (the Canvas you selected is already correct for the workflow logic).
+
+---
+
+## Final Verification in GitHub Actions Logs
+
+After pushing these changes and the video rendering workflow starts:
+
+1.  Go to the **"Actions" tab** in your **video rendering repository**.
+2.  Click on the **most recent workflow run**.
+3.  **Expand the "Install Python dependencies" step.** You *must* see output indicating that `pip` is performing a **force-reinstall** and installing `requests` and `appdirs`. If it says `Requirement already satisfied`, it's still using an old version.
+4.  **Expand the "Run video rendering script" step.**
+    * Look for the **`DEBUG` messages** from `MidiVisualizer`. This is where you'll see confirmation that the `Soundfont` is being handled (e.g., "Attempting to download SoundFont" or "Using cached default SoundFont") and the color values are recognized.
+    * Look for any `WARNING` or `ERROR` messages in this step.
+
+This thorough reset and re-trigger should finally force the workflow to pick up the correct, updated `amusic` package. Please carefully check those logs, as they will tell us exactly what the workflow is doi
