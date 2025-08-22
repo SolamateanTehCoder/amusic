@@ -240,7 +240,7 @@ class MidiVisualizer:
             # Filter for non-note messages from the original merged stream
             for event_info in all_original_messages_with_abs_time:
                 if event_info['msg'].type != 'note_on' and event_info['msg'].type != 'note_off':
-                    rebuild_events.append({'time': event_info['time'], 'type': 'original_msg_wrapper', 'msg': event_info['msg'].copy()})
+                    rebuild_events.append({'time': event['time'], 'type': 'original_msg_wrapper', 'msg': event_info['msg'].copy()}) # Changed event_info['time'] to event['time']
             
             # Sort all events chronologically
             rebuild_events.sort(key=lambda x: x['time'])
