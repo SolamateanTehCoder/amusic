@@ -4,7 +4,6 @@ import shutil
 import sys
 import subprocess
 import requests # New import for downloading files
-# Removed tempfile as files will be persistent now
 import appdirs # New import for finding OS-specific data dir, to make cache more robust
 
 try:
@@ -382,7 +381,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='amusic',
-    version='0.1.4', # <--- IMPORTANT: Ensure this version is INCREMENTED!
+    version='0.1.5', # <--- IMPORTANT: Ensure this version is INCREMENTED!
     author='SolamateanTehCoder', # Replace with your actual GitHub username
     author_email='your.email@example.com', # Replace with your actual email
     description='A Python tool for generating MIDI visualization videos with note separation, auto-soundfont download, and color customization.',
@@ -396,8 +395,8 @@ setup(
         'Pillow',
         'pydub',
         'numpy',
-        'requests',  # Make sure this is present!
-        'appdirs',   # Make sure this is present!
+        'requests',
+        'appdirs',
     ],
     classifiers=[
         'Programming Language :: Python :: 3',
@@ -432,24 +431,96 @@ appdirs
 
 ---
 
-## Step 2: **Trigger Your Video Rendering Workflow**
+## Step 2: Update Your Video Rendering Workflow Repository
 
-Now that your `amusic` package repository is fully updated, we need to trigger your video rendering workflow to pull these latest changes.
+This is the repository that runs your `.github/workflows/main.yml` file.
 
-* **Action:** Go to your video rendering GitHub repository.
-* **Push a New Commit:** Make any small, non-functional change to its `main` branch. This could be adding a blank line to its `README.md` or adding a comment to the `.github/workflows/main.yml` file itself (the Canvas you selected is already correct for the workflow logic).
+Go to your video rendering GitHub repository. Open `.github/workflows/main.yml`. **Delete everything that's currently in that file and paste the *entire code block* below.**
 
----
 
-## Final Verification in GitHub Actions Logs
+```yaml
+name: Render Video with Amusic
 
-After pushing these changes and the video rendering workflow starts:
+on: [push] # This workflow will run on every push to this repository
 
-1.  Go to the **"Actions" tab** in your **video rendering repository**.
-2.  Click on the **most recent workflow run**.
-3.  **Expand the "Install Python dependencies" step.** You *must* see output indicating that `pip` is performing a **force-reinstall** and installing `requests` and `appdirs`. If it says `Requirement already satisfied`, it's still using an old version.
-4.  **Expand the "Run video rendering script" step.**
-    * Look for the **`DEBUG` messages** from `MidiVisualizer`. This is where you'll see confirmation that the `Soundfont` is being handled (e.g., "Attempting to download SoundFont" or "Using cached default SoundFont") and the color values are recognized.
-    * Look for any `WARNING` or `ERROR` messages in this step.
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-This thorough reset and re-trigger should finally force the workflow to pick up the correct, updated `amusic` package. Please carefully check those logs, as they will tell us exactly what the workflow is doi
+    permissions:
+      contents: read # Only needs read permission for this repository's code
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9' # Or the Python version your project needs
+
+    - name: Install system dependencies (FFmpeg, Timidity)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg timidity # Install necessary system tools
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # This command forces a reinstallation and disables caching to ensure
+        # the absolute latest code from your 'amusic' repository is installed.
+        pip install --force-reinstall --no-cache-dir git+https://github.com/SolamateanTehCoder/amusic.git@main#egg=amusic
+
+    - name: Run video rendering script
+      # This step creates a small Python script on the fly to use your installed 'amusic' package.
+      run: |
+        echo "from amusic.visualizer import MidiVisualizer" > run_video.py
+        echo "import os, sys" >> run_video.py
+        echo "" >> run_video.py
+        echo "# --- Configuration for the video output ---" >> run_video.py
+        echo "MIDI_FILE = 'direct_output.midi'" >> run_video.py
+        echo "OUTPUT_VIDEO = 'rendered_amusic_video.mp4'" >> run_video.py
+        echo "VIDEO_RESOLUTION = (1920, 1080)  # Full HD resolution" >> run_video.py
+        echo "VIDEO_FPS = 60                   # Frames per second" >> run_video.py
+        echo "MIN_NOTE_GAP = 0.04              # Seconds to ensure visual separation of fast notes" >> run_video.py
+        echo "" >> run_video.py
+        echo "# --- Sound and Color Configuration ---" >> run_video.py
+        echo "# MidiVisualizer will now auto-download a default SoundFont if soundfont_path is None." >> run_video.py
+        echo "# It will also cache the downloaded soundfont for faster future runs." >> run_video.py
+        echo "SOUNDFONT_PATH = None # Set to None to use the auto-downloaded default piano sound" >> run_video.py
+        echo "" >> run_video.py
+        echo "# Colors for falling notes (RGB: Red, Green, Blue, 0-255)" >> run_video.py
+        echo "# Try different values to achieve a 'flurry away' or 'pop' effect" >> run_video.py
+        echo "FALLING_NOTE_COLOR = [75, 105, 177] # Example: A calm blue" >> run_video.py
+        echo "" >> run_video.py
+        echo "# Colors for pressed keys (RGB)" >> run_video.py
+        echo "# Example: A bright yellow/orange for a strong visual 'pop' on hit" >> run_video.py
+        echo "PRESSED_KEY_COLOR = [255, 230, 0]" >> run_video.py
+        echo "" >> run_video.py
+        echo "# --- Check for MIDI file existence ---" >> run_video.py
+        echo "if not os.path.exists(MIDI_FILE):" >> run_video.py
+        echo "    print(f'ERROR: MIDI file {MIDI_FILE} not found in this repository.')" >> run_video.py
+        echo "    sys.exit(1)" >> run_video.py
+        echo "" >> run_video.py
+        echo "print(f'DEBUG: Using MIDI file: {MIDI_FILE}')" >> run_video.py
+        echo "" >> run_video.py
+        echo "# --- Initialize and run the visualizer with new parameters ---" >> run_video.py
+        echo "visualizer = MidiVisualizer(" >> run_video.py
+        echo "    midi_file_path=MIDI_FILE," >> run_video.py
+        echo "    output_video_filename=OUTPUT_VIDEO," >> run_video.py
+        echo "    resolution=VIDEO_RESOLUTION," >> run_video.py
+        echo "    fps=VIDEO_FPS," >> run_video.py
+        echo "    min_visual_gap_seconds=MIN_NOTE_GAP," >> run_video.py
+        echo "    soundfont_path=SOUNDFONT_PATH,        # Pass None to auto-download SoundFont" >> run_video.py
+        echo "    falling_note_color=FALLING_NOTE_COLOR, # Pass falling note color" >> run_video.py
+        echo "    pressed_key_color=PRESSED_KEY_COLOR   # Pass pressed key color" >> run_video.py
+        echo ")" >> run_video.py
+        echo "visualizer.create_visualizer_video()" >> run_video.py
+        echo "print(f'SUCCESS: Video saved to: {OUTPUT_VIDEO}')" >> run_video.py
+        python run_video.py
+
+    - name: Upload rendered video artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: rendered-midi-video
+        path: rendered_amusic_video.mp4
+        retention-days: 5
