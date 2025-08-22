@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='amusic',
-    version='1.0.1', 
+    version='1.1.0', 
     author='SolamateanTehCoder', # Make sure this is your GitHub username
     author_email='your.email@example.com', # Replace with your actual email
     description='A Python tool for generating MIDI visualization videos with note separation, auto-soundfont download, and color customization.',
