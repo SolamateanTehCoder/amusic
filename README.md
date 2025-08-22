@@ -39,7 +39,7 @@ Before installing the Python package, ensure you have the following system-level
 ---
 
 ## Installation
-* **pip install amusic** *
+* **pip install amusic** 
 ## Usage
 
 Once installed, you can use the `MidiVisualizer` class in your Python scripts:
