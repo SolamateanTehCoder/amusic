@@ -1,6 +1,6 @@
 # amusic
 
-A custom MIDI visualization tool designed to render videos with a unique, game-like style, inspired by channels like Simply Mario Bros (SMB).
+A custom MIDI visualization tool designed to render videos.
 
 This project moves away from pre-built visualization libraries like `synthviz` to provide a flexible, frame-by-frame rendering pipeline built with `pygame` and `moviepy`.
 
