@@ -2,7 +2,10 @@ import pygame
 import mido
 import os
 import shutil
-from moviepy.editor import ImageSequenceClip
+try:
+    from moviepy.editor import ImageSequenceClip
+except ImportError:
+    from moviepy.video.tools.subclip import ImageSequenceClip
 from mido.midifiles.tracks import MidiTrack
 import time
 
