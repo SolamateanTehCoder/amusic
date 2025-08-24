@@ -1,68 +1,68 @@
-# Amusic
+# amusic
 
-A Python package designed to generate engaging MIDI visualization videos with animated falling notes, leveraging the `synthviz` library. This tool includes a pre-processing step to ensure clear visual separation of rapid, consecutive notes on the same key.
+A custom MIDI visualization tool designed to render videos with a unique, game-like style, inspired by channels like Simply Mario Bros (SMB).
 
----
+This project moves away from pre-built visualization libraries like `synthviz` to provide a flexible, frame-by-frame rendering pipeline built with `pygame` and `moviepy`.
 
-## Features
+## ✨ Features
 
-* **MIDI to Video:** Converts MIDI files into dynamic video visualizations.
+* **Custom Rendering Engine**: Render notes as falling sprites rather than simple bars.
 
-* **Visual Note Separation:** Automatically adjusts note durations to create clear visual gaps for fast, repeated notes on the same key.
+* **Real-time Key Lighting**: Piano keys at the bottom light up as notes are played.
 
-* **Customizable Output:** Control video resolution, frame rate, note falling speed, and more.
+* **Full Control**: Customize resolution, frame rate, and other visual elements.
 
-* **Cross-Platform:** Designed to work on Windows, macOS, and Linux.
+* **MIDI Support**: Processes standard MIDI files (`.mid`).
 
----
+## ⚙️ Requirements
 
-## System Requirements
+To run this project, you need:
 
-Before installing the Python package, ensure you have the following system-level dependencies installed on your operating system:
+* **Python 3.6+**
 
-* **FFmpeg:** A powerful tool for handling multimedia files (video and audio).
+* **FFmpeg**: Required by `moviepy` to render the video. You can install it on your system with a package manager (e.g., `brew install ffmpeg` on macOS, `sudo apt-get install ffmpeg` on Ubuntu).
 
-    * **Ubuntu/Debian:** `sudo apt-get update && sudo apt-get install -y ffmpeg`
+The Python dependencies are handled by `pip` automatically.
 
-    * **macOS (with Homebrew):** `brew install ffmpeg`
+## 📥 Installation
 
-    * **Windows:** Download from the [FFmpeg website](https://ffmpeg.org/download.html) and add to your system's PATH.
+You can install `amusic` directly from the Python Package Index (PyPI).
 
-* **Timidity:** A MIDI sequencer that `synthviz` uses for audio synthesis.
+```
+pip install amusic
+```
 
-    * **Ubuntu/Debian:** `sudo apt-get update && sudo apt-get install -y timidity`
+If you plan to modify the code, you can also clone the repository and install it in editable mode. This links your environment to your local files, so any changes you make are instantly available.
 
-    * **macOS (with Homebrew):** `brew install timidity`
+```
+# Clone the repository
+git clone [https://github.com/SolamateanTehCoder/amusic.git](https://github.com/SolamateanTehCoder/amusic.git)
+cd amusic
 
-    * **Windows:** Download a Windows binary (e.g., from [here](https://www.google.com/search?q=https://sourceforge.net/projects/timidity/files/timidity%2B%2B/)) and add to your system's PATH.
+# Install in editable mode
+pip install -e .
+```
 
----
+## 🚀 Usage
 
-## Installation
-* **pip install amusic** 
-## Usage
+Here is a simple example of how to use the `MidiVisualizer` class to generate a video.
 
-Once installed, you can use the `MidiVisualizer` class in your Python scripts:
+```
+from amusic import MidiVisualizer
 
-```python
-from amusic.visualizer import MidiVisualizer
-import os
+# Create a visualizer instance
+visualizer = MidiVisualizer(
+    midi_file="your_song.mid",
+    output_video="my_amazing_video.mp4",
+    resolution=(1920, 1080),
+    fps=60,
+    note_speed=0.5  # Adjust this value to change how fast notes fall
+)
 
-# --- Configuration ---
-# Replace 'your_midi_file.midi' with the path to your MIDI file
-MIDI_FILE = "your_midi_file.midi"
-OUTPUT_VIDEO = "my_midi_video.mp4"
+# Render the video
+visualizer.render_video()
+```
 
-# --- Create and run the visualizer ---
-if os.path.exists(MIDI_FILE):
-    visualizer = MidiVisualizer(
-        midi_file_path=MIDI_FILE,
-        output_video_filename=OUTPUT_VIDEO,
-        resolution=(1920, 1080),  # Example: Full HD resolution
-        fps=60,                   # Example: Higher frame rate
-        min_visual_gap_seconds=0.04 # Example: Adjust gap for visual clarity
-    )
-    visualizer.create_visualizer_video()
-    print(f"Video saved to: {OUTPUT_VIDEO}")
-else:
-    print(f"Error: MIDI file '{MIDI_FILE}' not found. Please provide a valid path.")
+## 🤝 Contributing
+
+Contributions are welcome! If you have suggestions for new features, bug fixes, or improvements, feel free to open an issue or submit a pull request.
