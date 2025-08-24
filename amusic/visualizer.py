@@ -2,6 +2,7 @@ import pygame
 import mido
 import os
 import shutil
+import moviepy
 try:
     from moviepy.editor import ImageSequenceClip
 except ImportError:
