@@ -125,12 +125,7 @@ class MidiVisualizer:
         if not os.path.exists(midi_path):
             raise FileNotFoundError(f"MIDI file not found at {midi_path}")
 
-        # Prepare directories for frames
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
-        os.makedirs(self.temp_dir)
-
-        print(f"DEBUG: Rendering frames to {self.temp_dir}...")
+        print(f"DEBUG: Rendering video to {output_path}...")
 
         # Initialize Pygame
         pygame.init()
@@ -147,7 +142,6 @@ class MidiVisualizer:
         open_notes = {}
         total_time = 0.0
 
-        # FIX: Replaced .iter_track() with a standard loop to handle older mido versions
         for track in mid.tracks:
             total_time_in_track = 0.0
             for msg in track:
@@ -167,7 +161,6 @@ class MidiVisualizer:
                         })
             total_time += total_time_in_track
         
-        # Add any notes that never received an 'off' message
         for (channel, note), start_time in open_notes.items():
             notes.append({
                 'note': note,
@@ -175,10 +168,27 @@ class MidiVisualizer:
                 'end': total_time,
                 'duration': total_time - start_time
             })
-
-        # Rendering loop
+            
         total_frames = int(total_time * self.fps)
         
+        # Use FFmpeg subprocess to pipe video frames directly
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-y',
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-pix_fmt', 'rgb24',
+            '-s', f'{self.width}x{self.height}',
+            '-r', str(self.fps),
+            '-i', '-',
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            output_path
+        ]
+        
+        proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
+        
+        # Rendering loop
         for frame_count in range(total_frames):
             current_time = frame_count / self.fps
             
@@ -191,9 +201,7 @@ class MidiVisualizer:
             
             # Draw falling notes
             for note in notes:
-                # Check if the note is active in the current frame
                 if current_time >= note['start'] and current_time < note['end']:
-                    # Calculate the note's position
                     time_to_go = note['end'] - current_time
                     y_pos = self.piano_start_y - (self.note_speed * time_to_go)
                     
@@ -207,7 +215,6 @@ class MidiVisualizer:
                         if note_name in {1, 3, 6, 8, 10}:
                             key_width = self.black_key_width
                         
-                        # Trigger effects when a note reaches the key
                         if y_pos <= self.piano_start_y and note['note'] not in self.active_keys:
                             self.active_keys[note['note']] = {'start_time': current_time, 'duration': 0.1}
                             self._create_particles(x_pos + key_width / 2, self.piano_start_y)
@@ -216,41 +223,27 @@ class MidiVisualizer:
             
             pygame.display.flip()
             
-            frame_filename = os.path.join(self.temp_dir, f'frame_{frame_count:06d}.png')
-            pygame.image.save(screen, frame_filename)
+            # Write the frame data directly to FFmpeg
+            frame_data = pygame.image.tostring(screen, 'RGB')
+            proc.stdin.write(frame_data)
             
+        # Close the pipe and wait for FFmpeg to finish
+        proc.stdin.close()
+        proc.wait()
+        
         pygame.quit()
         
-        print(f"DEBUG: All frames rendered. Now compiling video with FFmpeg...")
+        if proc.returncode != 0:
+            raise RuntimeError(f"An error occurred during FFmpeg execution. Return code: {proc.returncode}")
         
-        ffmpeg_cmd = [
-            'ffmpeg',
-            '-y',
-            '-r', str(self.fps),
-            '-i', os.path.join(self.temp_dir, 'frame_%06d.png'),
-            '-c:v', 'libx264',
-            '-pix_fmt', 'yuv420p',
-            output_path
-        ]
-
-        try:
-            subprocess.run(ffmpeg_cmd, check=True)
-            print(f"SUCCESS: Video saved to: {output_path}")
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"An error occurred during FFmpeg execution: {e}")
-
-        # Clean up temporary frames
-        shutil.rmtree(self.temp_dir)
-        print("DEBUG: Cleaned up temporary files.")
+        print(f"SUCCESS: Video saved to: {output_path}")
 
     def _update_effects(self, current_time):
         """Updates the state of active key highlights and particles."""
-        # Update active keys
         keys_to_remove = [note for note, data in self.active_keys.items() if current_time - data['start_time'] > data['duration']]
         for note in keys_to_remove:
             del self.active_keys[note]
 
-        # Update particles
         self.particles = [p for p in self.particles if p['alpha'] > 0]
         for p in self.particles:
             p['x'] += p['vx']
@@ -260,7 +253,6 @@ class MidiVisualizer:
 
     def _draw_effects(self, screen):
         """Draws key highlights and particles."""
-        # Draw key highlights
         for note in self.active_keys:
             x_pos = self._get_key_x_position(note)
             key_width = self.white_key_width
@@ -269,10 +261,9 @@ class MidiVisualizer:
                 key_width = self.black_key_width
             
             highlight_surface = pygame.Surface((key_width, self.piano_key_height), pygame.SRCALPHA)
-            highlight_surface.fill(self.highlight_color + (80,)) # Semi-transparent
+            highlight_surface.fill(self.highlight_color + (80,))
             screen.blit(highlight_surface, (x_pos, self.piano_start_y))
 
-        # Draw particles
         for p in self.particles:
             if p['alpha'] > 0:
                 particle_color = p['color'] + (int(p['alpha']),)
