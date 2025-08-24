@@ -1,7 +1,4 @@
-mido
-synthviz
-Pillow
-pydub
-numpy
-requests
-appdirs
+mido==1.2.10
+pygame==2.5.2
+moviepy==1.0.3
+Pillow==10.4.0
