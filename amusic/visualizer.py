@@ -6,7 +6,12 @@ import moviepy
 try:
     from moviepy.editor import ImageSequenceClip
 except ImportError:
-    from moviepy.video.tools.subclip import ImageSequenceClip
+    try:
+        from moviepy.video.tools.subclip import ImageSequenceClip
+    except ImportError:
+        raise ImportError(
+            "The required 'moviepy' module or its components could not be found. "
+            "Please ensure you have a compatible version of moviepy installed.")
 from mido.midifiles.tracks import MidiTrack
 import time
 
