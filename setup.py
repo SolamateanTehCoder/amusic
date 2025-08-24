@@ -11,7 +11,7 @@ setup(
         'Pillow'
     ],
     author='SolamateanTehCoder',
-    description='A tool to generate MIDI visualization videos with a custom, SMB-style rendering engine.',
+    description='A tool to generate MIDI visualization videos with visual effects.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     url='https://github.com/SolamateanTehCoder/amusic',
