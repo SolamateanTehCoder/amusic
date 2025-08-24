@@ -1,4 +1,3 @@
-import sys
 import os
 import glob
 import subprocess
@@ -6,104 +5,94 @@ import shutil
 import mido
 import pygame
 
-# --- Configuration ---
-MIDI_FILE = 'direct_output.midi'
-OUTPUT_VIDEO = 'rendered_video.mp4'
-
-# Video properties
-VIDEO_WIDTH = 1280
-VIDEO_HEIGHT = 720
-VIDEO_FPS = 30
-
-# Visual properties
-PIANO_KEY_WIDTH = 10
-FALLING_NOTE_SPEED = 5
-
-def main():
+class MidiVisualizer:
     """
-    Main function to run the video rendering process.
+    A class to generate MIDI visualizations by rendering frames
+    with Pygame and compiling them into a video with FFmpeg.
     """
-    if not os.path.exists(MIDI_FILE):
-        print(f"Error: MIDI file not found at {MIDI_FILE}")
-        sys.exit(1)
+    def __init__(self, width=1280, height=720, fps=30):
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.temp_dir = 'temp_frames'
+        self.piano_key_width = 10
+        self.falling_note_speed = 5
 
-    # Prepare directories
-    temp_dir = 'temp_frames'
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    os.makedirs(temp_dir)
+    def render_video(self, midi_path, output_path):
+        """
+        Renders a MIDI file visualization to a video file.
 
-    print(f"DEBUG: Rendering frames to {temp_dir}...")
+        Args:
+            midi_path (str): Path to the input MIDI file.
+            output_path (str): Path for the output video file.
+        """
+        if not os.path.exists(midi_path):
+            raise FileNotFoundError(f"MIDI file not found at {midi_path}")
 
-    # Initialize Pygame
-    pygame.init()
-    screen = pygame.display.set_mode((VIDEO_WIDTH, VIDEO_HEIGHT))
-    
-    # Load MIDI file
-    try:
-        mid = mido.MidiFile(MIDI_FILE)
-    except Exception as e:
-        print(f"Error loading MIDI file: {e}")
-        sys.exit(1)
+        # Prepare directories for frames
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+        os.makedirs(self.temp_dir)
 
-    # Rendering loop
-    frame_count = 0
-    note_on_events = []
-    
-    for msg in mid.play():
-        if msg.type == 'note_on' and msg.velocity > 0:
-            note_on_events.append({'time': msg.time, 'note': msg.note})
+        print(f"DEBUG: Rendering frames to {self.temp_dir}...")
+
+        # Initialize Pygame
+        pygame.init()
+        screen = pygame.display.set_mode((self.width, self.height))
         
-        # Clear screen
-        screen.fill((0, 0, 0))
+        # Load MIDI file
+        try:
+            mid = mido.MidiFile(midi_path)
+        except Exception as e:
+            raise RuntimeError(f"Error loading MIDI file: {e}")
+
+        # Rendering loop
+        frame_count = 0
+        note_on_events = []
         
-        # Draw falling notes and pressed keys (simplified for this example)
-        for event in note_on_events:
-            # Draw a note based on its time and speed
-            x = (event['note'] % 12) * PIANO_KEY_WIDTH + (event['note'] // 12) * 20
-            y = VIDEO_HEIGHT - (msg.time - event['time']) * FALLING_NOTE_SPEED * VIDEO_FPS
-            pygame.draw.rect(screen, (75, 105, 177), (x, y, PIANO_KEY_WIDTH, 20))
+        for msg in mid.play():
+            if msg.type == 'note_on' and msg.velocity > 0:
+                note_on_events.append({'time': msg.time, 'note': msg.note})
             
-        pygame.display.flip()
+            # Clear screen
+            screen.fill((0, 0, 0))
+            
+            # Draw falling notes (simplified for this example)
+            for event in note_on_events:
+                # Draw a note based on its time and speed
+                x = (event['note'] % 12) * self.piano_key_width + (event['note'] // 12) * 20
+                y = self.height - (msg.time - event['time']) * self.falling_note_speed * self.fps
+                pygame.draw.rect(screen, (75, 105, 177), (x, y, self.piano_key_width, 20))
+                
+            pygame.display.flip()
+            
+            # Save frame
+            frame_filename = os.path.join(self.temp_dir, f'frame_{frame_count:06d}.png')
+            pygame.image.save(screen, frame_filename)
+            frame_count += 1
+            
+        pygame.quit()
         
-        # Save frame
-        frame_filename = os.path.join(temp_dir, f'frame_{frame_count:06d}.png')
-        pygame.image.save(screen, frame_filename)
-        frame_count += 1
+        print(f"DEBUG: All frames rendered. Now compiling video with FFmpeg...")
         
-    pygame.quit()
-    
-    print(f"DEBUG: All frames rendered. Now compiling video with FFmpeg...")
-    
-    # FFmpeg command to compile images into a video
-    # -framerate: specifies the frame rate of the input images
-    # -i: input file pattern
-    # -c:v: video codec (libx264 is a good default)
-    # -pix_fmt: pixel format
-    # -y: overwrite output file if it exists
-    # final output file
-    ffmpeg_cmd = [
-        'ffmpeg',
-        '-y',
-        '-r', str(VIDEO_FPS),
-        '-i', os.path.join(temp_dir, 'frame_%06d.png'),
-        '-c:v', 'libx264',
-        '-pix_fmt', 'yuv420p',
-        OUTPUT_VIDEO
-    ]
+        # FFmpeg command to compile images into a video
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-y',
+            '-r', str(self.fps),
+            '-i', os.path.join(self.temp_dir, 'frame_%06d.png'),
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            output_path
+        ]
 
-    try:
-        subprocess.run(ffmpeg_cmd, check=True)
-        print(f"SUCCESS: Video saved to: {OUTPUT_VIDEO}")
-    except subprocess.CalledProcessError as e:
-        print(f"An error occurred during FFmpeg execution: {e}")
-        sys.exit(1)
+        try:
+            subprocess.run(ffmpeg_cmd, check=True)
+            print(f"SUCCESS: Video saved to: {output_path}")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"An error occurred during FFmpeg execution: {e}")
 
-    # Clean up temporary frames
-    shutil.rmtree(temp_dir)
-    print("DEBUG: Cleaned up temporary files.")
-
-
-if __name__ == "__main__":
-    main()
+        # Clean up temporary frames
+        shutil.rmtree(self.temp_dir)
+        print("DEBUG: Cleaned up temporary files.")
 
