@@ -1,3 +1,7 @@
+# visualizer.py
+# This module provides a class to create MIDI visualizations by rendering frames
+# with Pygame and compiling them into a video with FFmpeg.
+
 import os
 import subprocess
 import shutil
@@ -143,19 +147,25 @@ class MidiVisualizer:
         open_notes = {}
         total_time = 0.0
 
-        for msg in mid.iter_track():
-            total_time += msg.time
-            if msg.type == 'note_on' and msg.velocity > 0:
-                open_notes[(msg.channel, msg.note)] = total_time
-            elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
-                if (msg.channel, msg.note) in open_notes:
-                    start_time = open_notes.pop((msg.channel, msg.note))
-                    notes.append({
-                        'note': msg.note,
-                        'start': start_time,
-                        'end': total_time,
-                        'duration': total_time - start_time
-                    })
+        # FIX: Replaced .iter_track() with a standard loop to handle older mido versions
+        for track in mid.tracks:
+            total_time_in_track = 0.0
+            for msg in track:
+                total_time_in_track += msg.time
+                absolute_time = total_time + total_time_in_track
+                
+                if msg.type == 'note_on' and msg.velocity > 0:
+                    open_notes[(msg.channel, msg.note)] = absolute_time
+                elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+                    if (msg.channel, msg.note) in open_notes:
+                        start_time = open_notes.pop((msg.channel, msg.note))
+                        notes.append({
+                            'note': msg.note,
+                            'start': start_time,
+                            'end': absolute_time,
+                            'duration': absolute_time - start_time
+                        })
+            total_time += total_time_in_track
         
         # Add any notes that never received an 'off' message
         for (channel, note), start_time in open_notes.items():
