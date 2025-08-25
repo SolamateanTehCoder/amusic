@@ -145,6 +145,7 @@ class MidiVisualizer:
 
         for track_index, track in enumerate(mid.tracks):
             for msg in track:
+                # Update the running time for the current track
                 track_times[track_index] += msg.time
                 
                 if msg.type == 'note_on' and msg.velocity > 0:
@@ -160,10 +161,7 @@ class MidiVisualizer:
                             'duration': track_times[track_index] - start_time
                         })
         
-        # Find the maximum time across all tracks to determine the video length
-        total_time = max(track_times) if track_times else 0.0
-        
-        # Add any notes that never received an 'off' message
+        # Add any notes that never received an 'off' message (they are still active at the end)
         for note_key, start_time in open_notes.items():
             track_index = note_key[0]
             notes.append({
@@ -172,7 +170,13 @@ class MidiVisualizer:
                 'end': track_times[track_index],
                 'duration': track_times[track_index] - start_time
             })
-            
+        
+        # Correctly find the true end of the song by checking all note end times.
+        if notes:
+            total_time = max(note['end'] for note in notes)
+        else:
+            total_time = 0.0
+
         total_frames = int(total_time * self.fps)
         
         # Use FFmpeg subprocess to pipe video frames directly
