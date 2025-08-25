@@ -1,3 +1,7 @@
+# visualizer.py
+# This module provides a class to create MIDI visualizations by rendering frames
+# with Pygame and compiling them into a video with FFmpeg.
+
 import os
 import subprocess
 import shutil
@@ -20,7 +24,7 @@ class MidiVisualizer:
         # Visual properties
         self.piano_key_height = 80
         self.piano_start_y = self.height - self.piano_key_height - 20
-        # There are 52 white keys on an 88-key piano
+        # There are 52 white keys on an an 88-key piano
         self.white_key_width = self.width / 52.0
         self.black_key_width = self.white_key_width * 0.6
         self.black_key_height = self.piano_key_height * 0.6
@@ -136,33 +140,37 @@ class MidiVisualizer:
         # Pre-process all note on/off events into a timeline
         notes = []
         open_notes = {}
-        total_time = 0.0
+        # Keep track of the absolute time for each track
+        track_times = [0.0] * len(mid.tracks)
 
-        for track in mid.tracks:
-            # We must use a single, continuously running time variable across all tracks.
-            # The .time attribute of a message is the delta from the previous message.
+        for track_index, track in enumerate(mid.tracks):
             for msg in track:
-                total_time += msg.time
+                track_times[track_index] += msg.time
                 
                 if msg.type == 'note_on' and msg.velocity > 0:
-                    open_notes[(msg.channel, msg.note)] = total_time
+                    open_notes[(track_index, msg.note, msg.channel)] = track_times[track_index]
                 elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
-                    if (msg.channel, msg.note) in open_notes:
-                        start_time = open_notes.pop((msg.channel, msg.note))
+                    note_key = (track_index, msg.note, msg.channel)
+                    if note_key in open_notes:
+                        start_time = open_notes.pop(note_key)
                         notes.append({
                             'note': msg.note,
                             'start': start_time,
-                            'end': total_time,
-                            'duration': total_time - start_time
+                            'end': track_times[track_index],
+                            'duration': track_times[track_index] - start_time
                         })
         
+        # Find the maximum time across all tracks to determine the video length
+        total_time = max(track_times) if track_times else 0.0
+        
         # Add any notes that never received an 'off' message
-        for (channel, note), start_time in open_notes.items():
+        for note_key, start_time in open_notes.items():
+            track_index = note_key[0]
             notes.append({
-                'note': note,
+                'note': note_key[1],
                 'start': start_time,
-                'end': total_time,
-                'duration': total_time - start_time
+                'end': track_times[track_index],
+                'duration': track_times[track_index] - start_time
             })
             
         total_frames = int(total_time * self.fps)
