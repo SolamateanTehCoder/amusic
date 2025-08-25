@@ -140,26 +140,28 @@ class MidiVisualizer:
         # Pre-process all note on/off events into a timeline
         notes = []
         open_notes = {}
-        total_time = 0.0
+        total_time_per_track = []
 
         for track in mid.tracks:
             total_time_in_track = 0.0
             for msg in track:
                 total_time_in_track += msg.time
-                absolute_time = total_time + total_time_in_track
                 
                 if msg.type == 'note_on' and msg.velocity > 0:
-                    open_notes[(msg.channel, msg.note)] = absolute_time
+                    open_notes[(msg.channel, msg.note)] = total_time_in_track
                 elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
                     if (msg.channel, msg.note) in open_notes:
                         start_time = open_notes.pop((msg.channel, msg.note))
                         notes.append({
                             'note': msg.note,
                             'start': start_time,
-                            'end': absolute_time,
-                            'duration': absolute_time - start_time
+                            'end': total_time_in_track,
+                            'duration': total_time_in_track - start_time
                         })
-            total_time += total_time_in_track
+            total_time_per_track.append(total_time_in_track)
+        
+        # Correctly calculate the total time based on the longest track
+        total_time = max(total_time_per_track) if total_time_per_track else 0
         
         for (channel, note), start_time in open_notes.items():
             notes.append({
@@ -193,13 +195,8 @@ class MidiVisualizer:
             current_time = frame_count / self.fps
             
             screen.fill(self.background_color)
-            self._draw_piano(screen)
             
-            # Update and draw key highlights and particles
-            self._update_effects(current_time)
-            self._draw_effects(screen)
-            
-            # Draw falling notes
+            # Draw falling notes first, to make them appear behind the piano
             for note in notes:
                 if current_time >= note['start'] and current_time < note['end']:
                     time_to_go = note['end'] - current_time
@@ -220,6 +217,13 @@ class MidiVisualizer:
                             self._create_particles(x_pos + key_width / 2, self.piano_start_y)
 
                         pygame.draw.rect(screen, self.note_color, (x_pos, y_pos, key_width, note_height))
+            
+            # Draw the piano on top of the notes
+            self._draw_piano(screen)
+            
+            # Update and draw key highlights and particles on top of the piano
+            self._update_effects(current_time)
+            self._draw_effects(screen)
             
             pygame.display.flip()
             
