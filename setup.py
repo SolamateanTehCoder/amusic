@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='amusic',
-    version='2.2.5', # if it 3.0.0 or onwards that means its actually stable an im happy with it
+    version='2.2.6', # if it 3.0.0 or onwards that means its actually stable an im happy with it
     packages=find_packages(),
     install_requires=[
         'mido',
