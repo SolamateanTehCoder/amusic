@@ -1,7 +1,3 @@
-# visualizer.py
-# This module provides a class to create MIDI visualizations by rendering frames
-# with Pygame and compiling them into a video with FFmpeg.
-
 import os
 import subprocess
 import shutil
@@ -140,29 +136,27 @@ class MidiVisualizer:
         # Pre-process all note on/off events into a timeline
         notes = []
         open_notes = {}
-        total_time_per_track = []
+        total_time = 0.0
 
         for track in mid.tracks:
-            total_time_in_track = 0.0
+            # We must use a single, continuously running time variable across all tracks.
+            # The .time attribute of a message is the delta from the previous message.
             for msg in track:
-                total_time_in_track += msg.time
+                total_time += msg.time
                 
                 if msg.type == 'note_on' and msg.velocity > 0:
-                    open_notes[(msg.channel, msg.note)] = total_time_in_track
+                    open_notes[(msg.channel, msg.note)] = total_time
                 elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
                     if (msg.channel, msg.note) in open_notes:
                         start_time = open_notes.pop((msg.channel, msg.note))
                         notes.append({
                             'note': msg.note,
                             'start': start_time,
-                            'end': total_time_in_track,
-                            'duration': total_time_in_track - start_time
+                            'end': total_time,
+                            'duration': total_time - start_time
                         })
-            total_time_per_track.append(total_time_in_track)
         
-        # Correctly calculate the total time based on the longest track
-        total_time = max(total_time_per_track) if total_time_per_track else 0
-        
+        # Add any notes that never received an 'off' message
         for (channel, note), start_time in open_notes.items():
             notes.append({
                 'note': note,
