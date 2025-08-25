@@ -136,6 +136,10 @@ class MidiVisualizer:
             mid = mido.MidiFile(midi_path)
         except Exception as e:
             raise RuntimeError(f"Error loading MIDI file: {e}")
+        
+        # Use mido's built-in length property for a robust total duration calculation.
+        total_time = mid.length
+        total_frames = int(total_time * self.fps)
 
         # Pre-process all note on/off events into a timeline
         notes = []
@@ -161,13 +165,7 @@ class MidiVisualizer:
                         })
         
         # Any remaining notes in open_notes are held until the end of the song.
-        # Find the max time of all notes that have been processed.
-        if notes:
-            total_time = max(note['end'] for note in notes)
-        else:
-            total_time = 0.0
-
-        # Now add the notes that were never released.
+        # Their end time is the total duration of the MIDI file.
         for note_key, start_time in open_notes.items():
             notes.append({
                 'note': note_key[1],
@@ -176,8 +174,6 @@ class MidiVisualizer:
                 'duration': total_time - start_time
             })
             
-        total_frames = int(total_time * self.fps)
-        
         # Use FFmpeg subprocess to pipe video frames directly
         ffmpeg_cmd = [
             'ffmpeg',
