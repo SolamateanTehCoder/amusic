@@ -1,3 +1,7 @@
+# visualizer.py
+# This module provides a class to create MIDI visualizations by rendering frames
+# with Pygame and compiling them into a video with FFmpeg.
+
 import os
 import subprocess
 import shutil
@@ -133,39 +137,45 @@ class MidiVisualizer:
         except Exception as e:
             raise RuntimeError(f"Error loading MIDI file: {e}")
 
-        # Pre-process all note on/off events into a single timeline
+        # Pre-process all note on/off events into a timeline
         notes = []
         open_notes = {}
         
-        # Merge all tracks and calculate the running time
-        merged_track = mido.merge_tracks(mid.tracks)
-        total_time = 0.0
-
-        for msg in merged_track:
-            total_time += msg.time
-            
-            if msg.type == 'note_on' and msg.velocity > 0:
-                open_notes[(msg.note, msg.channel)] = total_time
-            elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
-                note_key = (msg.note, msg.channel)
-                if note_key in open_notes:
-                    start_time = open_notes.pop(note_key)
-                    notes.append({
-                        'note': msg.note,
-                        'start': start_time,
-                        'end': total_time,
-                        'duration': total_time - start_time
-                    })
+        # Process each track to get absolute times for all note events.
+        for track_index, track in enumerate(mid.tracks):
+            current_time = 0.0
+            for msg in track:
+                current_time += msg.time
+                
+                if msg.type == 'note_on' and msg.velocity > 0:
+                    open_notes[(track_index, msg.note, msg.channel)] = current_time
+                elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+                    note_key = (track_index, msg.note, msg.channel)
+                    if note_key in open_notes:
+                        start_time = open_notes.pop(note_key)
+                        notes.append({
+                            'note': msg.note,
+                            'start': start_time,
+                            'end': current_time,
+                            'duration': current_time - start_time
+                        })
         
-        # Add any notes that never received an 'off' message (they are still active at the end)
+        # Any remaining notes in open_notes are held until the end of the song.
+        # Find the max time of all notes that have been processed.
+        if notes:
+            total_time = max(note['end'] for note in notes)
+        else:
+            total_time = 0.0
+
+        # Now add the notes that were never released.
         for note_key, start_time in open_notes.items():
             notes.append({
-                'note': note_key[0],
+                'note': note_key[1],
                 'start': start_time,
                 'end': total_time,
                 'duration': total_time - start_time
             })
-        
+            
         total_frames = int(total_time * self.fps)
         
         # Use FFmpeg subprocess to pipe video frames directly
