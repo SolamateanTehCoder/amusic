@@ -1,3 +1,7 @@
+# visualizer.py
+# This module provides a class to create MIDI visualizations by rendering frames
+# with Pygame and compiling them into a video with FFmpeg.
+
 import os
 import subprocess
 import shutil
@@ -10,10 +14,15 @@ class MidiVisualizer:
     A class to generate MIDI visualizations by rendering frames
     with Pygame and compiling them into a video with FFmpeg.
     """
-    def __init__(self, width=1280, height=720, fps=30):
-        self.width = width
-        self.height = height
+    def __init__(self, midi_file_path, output_video_filename, resolution, fps, min_visual_gap_seconds, falling_note_color, pressed_key_color, soundfont_path=None):
+        self.midi_file_path = midi_file_path
+        self.output_video_filename = output_video_filename
+        self.width = resolution[0]
+        self.height = resolution[1]
         self.fps = fps
+        self.min_visual_gap = min_visual_gap_seconds
+        self.soundfont_path = soundfont_path
+        
         self.temp_dir = 'temp_frames'
         self.note_speed = 600  # Pixels per second
 
@@ -28,8 +37,8 @@ class MidiVisualizer:
         # Colors
         self.white_key_color = (255, 255, 255)
         self.black_key_color = (0, 0, 0)
-        self.note_color = (75, 105, 177)
-        self.highlight_color = (75, 105, 177)
+        self.note_color = falling_note_color
+        self.highlight_color = pressed_key_color
         self.background_color = (0, 0, 0)
         
         # Data structures for effects
@@ -101,14 +110,15 @@ class MidiVisualizer:
                     (x, self.piano_start_y, self.black_key_width, self.black_key_height)
                 )
 
-    def render_video(self, midi_path, output_path):
+    def create_visualizer_video(self):
         """
         Renders a MIDI file visualization to a video file.
+        This method is called directly by the render script.
         """
-        if not os.path.exists(midi_path):
-            raise FileNotFoundError(f"MIDI file not found at {midi_path}")
+        if not os.path.exists(self.midi_file_path):
+            raise FileNotFoundError(f"MIDI file not found at {self.midi_file_path}")
 
-        print(f"DEBUG: Rendering video to {output_path}...")
+        print(f"DEBUG: Rendering video to {self.output_video_filename}...")
 
         # Initialize Pygame
         pygame.init()
@@ -116,7 +126,7 @@ class MidiVisualizer:
         
         # Load MIDI file
         try:
-            mid = mido.MidiFile(midi_path)
+            mid = mido.MidiFile(self.midi_file_path)
         except Exception as e:
             raise RuntimeError(f"Error loading MIDI file: {e}")
         
@@ -169,7 +179,7 @@ class MidiVisualizer:
             '-i', '-',
             '-c:v', 'libx264',
             '-pix_fmt', 'yuv420p',
-            output_path
+            self.output_video_filename
         ]
         
         proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
@@ -185,11 +195,20 @@ class MidiVisualizer:
             self._draw_piano(screen)
             
             # Draw falling notes
+            # The time it takes for a note to travel from the top to the piano.
+            travel_time = self.piano_start_y / self.note_speed
+            
             for note in notes:
-                if current_time >= note['start'] and current_time < note['end']:
-                    time_to_go = note['end'] - current_time
-                    y_pos = self.piano_start_y - (self.note_speed * time_to_go)
+                # Calculate the time when the note should start appearing on screen
+                spawn_time = note['start'] - travel_time
+                
+                # Only draw the note if it's within the on-screen time window
+                if current_time >= spawn_time and current_time < note['end']:
+                    # Calculate the note's y position (top of the rectangle)
+                    # The y position is based on the time since the note 'spawned'
+                    y_pos = (current_time - spawn_time) * self.note_speed
                     
+                    # The height of the note is based on its duration
                     note_height = self.note_speed * note['duration']
                     
                     x_pos = self._get_key_x_position(note['note'])
@@ -225,7 +244,7 @@ class MidiVisualizer:
         if proc.returncode != 0:
             raise RuntimeError(f"An error occurred during FFmpeg execution. Return code: {proc.returncode}")
         
-        print(f"SUCCESS: Video saved to: {output_path}")
+        print(f"SUCCESS: Video saved to: {self.output_video_filename}")
 
     def _update_effects(self, current_time):
         """Updates the state of active key highlights and particles."""
