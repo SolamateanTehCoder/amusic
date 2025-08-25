@@ -1,7 +1,3 @@
-# visualizer.py
-# This module provides a class to create MIDI visualizations by rendering frames
-# with Pygame and compiling them into a video with FFmpeg.
-
 import os
 import subprocess
 import shutil
@@ -92,31 +88,18 @@ class MidiVisualizer:
                 white_key_count += 1
         
         # Then, draw all black keys on top
-        white_key_count = 0
         for i in range(88):
             midi_note = 21 + i
             note_name_in_octave = midi_note % 12
 
             if note_name_in_octave in black_key_indices:
-                if note_name_in_octave == 1: # C#
-                    x = (white_key_count) * self.white_key_width - (self.black_key_width / 2)
-                elif note_name_in_octave == 3: # D#
-                    x = (white_key_count + 1) * self.white_key_width - (self.black_key_width / 2)
-                elif note_name_in_octave == 6: # F#
-                    x = (white_key_count + 2) * self.white_key_width - (self.black_key_width / 2)
-                elif note_name_in_octave == 8: # G#
-                    x = (white_key_count + 3) * self.white_key_width - (self.black_key_width / 2)
-                elif note_name_in_octave == 10: # A#
-                    x = (white_key_count + 4) * self.white_key_width - (self.black_key_width / 2)
+                x = self._get_key_x_position(midi_note)
                 
                 pygame.draw.rect(
                     screen,
                     self.black_key_color,
                     (x, self.piano_start_y, self.black_key_width, self.black_key_height)
                 )
-            
-            if note_name_in_octave not in black_key_indices:
-                white_key_count += 1
 
     def render_video(self, midi_path, output_path):
         """
@@ -195,9 +178,13 @@ class MidiVisualizer:
         for frame_count in range(total_frames):
             current_time = frame_count / self.fps
             
+            # Clear the screen first
             screen.fill(self.background_color)
             
-            # Draw falling notes first, to make them appear behind the piano
+            # Now, draw the piano keyboard so notes can fall on top of it.
+            self._draw_piano(screen)
+            
+            # Draw falling notes
             for note in notes:
                 if current_time >= note['start'] and current_time < note['end']:
                     time_to_go = note['end'] - current_time
@@ -218,9 +205,6 @@ class MidiVisualizer:
                             self._create_particles(x_pos + key_width / 2, self.piano_start_y)
 
                         pygame.draw.rect(screen, self.note_color, (x_pos, y_pos, key_width, note_height))
-            
-            # Draw the piano on top of the notes
-            self._draw_piano(screen)
             
             # Update and draw key highlights and particles on top of the piano
             self._update_effects(current_time)
